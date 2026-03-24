@@ -7,16 +7,13 @@ from typing import Any
 import streamlit as st
 from openai import OpenAI
 
-HERE = Path(__file__).resolve().parent
-WORKSPACE_ROOT = HERE.parent
-DATA_DIR = WORKSPACE_ROOT / "Data"
 
 EMBEDDING_FILES = {
     "Binnenlandse zaken": [
-        DATA_DIR / "bzk.json.gz",
+        "Data/bzk.json.gz",
     ],
     "Financiën": [
-        DATA_DIR / "fin.json.gz",
+        "Data/fin.json.gz",
     ],
 }
 
