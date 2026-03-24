@@ -3,6 +3,8 @@ import json
 import math
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
+from urllib.request import Request, urlopen
 
 import streamlit as st
 from openai import OpenAI
@@ -10,31 +12,58 @@ from openai import OpenAI
 
 EMBEDDING_FILES = {
     "Binnenlandse zaken": [
-        "Data/bzk.json.gz",
+        "https://raw.githubusercontent.com/michielsd/kamervraagbaak/main/Data/bzk.json.gz",
     ],
     "Financiën": [
-        "Data/fin.json.gz",
+        "https://raw.githubusercontent.com/michielsd/kamervraagbaak/main/Data/fin.json.gz",
     ],
 }
 
 
-def _load_json_or_json_gz(path: Path) -> dict[str, Any]:
-    if path.suffix.lower() == ".gz":
-        with gzip.open(path, "rt", encoding="utf-8") as f:
-            data = json.load(f)
+def _is_url(value: str) -> bool:
+    parsed = urlparse(value)
+    return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
+
+
+def _to_raw_github_url(value: str) -> str:
+    # Allow users to paste either blob or raw GitHub links.
+    if "github.com" in value and "/blob/" in value:
+        return value.replace("github.com", "raw.githubusercontent.com").replace("/blob/", "/")
+    return value
+
+
+def _load_json_or_json_gz(source: str) -> dict[str, Any]:
+    if _is_url(source):
+        url = _to_raw_github_url(source)
+        req = Request(url, headers={"User-Agent": "kb-st/1.0"})
+        with urlopen(req, timeout=60) as resp:
+            raw_bytes = resp.read()
+        if url.lower().endswith(".gz"):
+            decoded = gzip.decompress(raw_bytes).decode("utf-8")
+            data = json.loads(decoded)
+        else:
+            data = json.loads(raw_bytes.decode("utf-8"))
     else:
-        with path.open("r", encoding="utf-8") as f:
-            data = json.load(f)
+        path = Path(source)
+        if path.suffix.lower() == ".gz":
+            with gzip.open(path, "rt", encoding="utf-8") as f:
+                data = json.load(f)
+        else:
+            with path.open("r", encoding="utf-8") as f:
+                data = json.load(f)
     if not isinstance(data, dict):
-        raise TypeError(f"Expected JSON object in {path}, got {type(data).__name__}.")
+        raise TypeError(f"Expected JSON object in {source}, got {type(data).__name__}.")
     return data
 
 
-def _resolve_source_path(source_name: str) -> Path:
+def _resolve_source_path(source_name: str) -> str:
     candidates = EMBEDDING_FILES.get(source_name) or []
-    for p in candidates:
+    for candidate in candidates:
+        if _is_url(candidate):
+            return candidate
+        p = Path(candidate)
         if p.exists():
-            return p
+            return str(p)
     names = ", ".join(str(p) for p in candidates) or "(geen kandidaten)"
     raise FileNotFoundError(f"Geen datafile gevonden voor '{source_name}'. Geprobeerd: {names}")
 
