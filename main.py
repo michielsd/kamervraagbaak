@@ -136,6 +136,9 @@ openai_api_key = st.secrets["OPENAI_API_KEY"]
 password = st.secrets["PASSWORD"]
 
 pwd = st.sidebar.text_input("Wachtwoord:", value="", type="password")
+if pwd != password:
+    st.error("Voer het wachtwoord in om toegang te krijgen tot de applicatie")
+    st.stop()
 
 def _deduplicated_rows(results: list[dict]) -> list[dict]:
     """Deduplicate by metadata.titel (keep highest cosine_similarity per title), sorted by similarity."""
